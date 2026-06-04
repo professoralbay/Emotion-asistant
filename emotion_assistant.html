@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Yüz ifadesi ve ses tonundan duygu analizi yapan mental sağlık asistanı">
+<title>Duygu Asistanı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+
+<style>
+/* ── CSS Değişkenleri ─────────────────────────────────────── */
+:root {
+  --bg:        #0e0f13;
+  --surface:   #16181f;
+  --surface2:  #1e2029;
+  --border:    rgba(255,255,255,0.07);
+  --accent:    #7c9cff;
+  --accent2:   #b8a4ff;
+  --text:      #e8eaf0;
+  --text-dim:  #6e7390;
+  --text-soft: #a8abbe;
+  --happy:     #4ade80;
+  --sad:       #60a5fa;
+  --angry:     #f87171;
+  --fear:      #fb923c;
+  --stressed:  #facc15;
+  --surprise:  #e879f9;
+  --disgust:   #a3e635;
+  --neutral:   #94a3b8;
+  --radius:    16px;
+  --radius-sm: 10px;
+}
+
+/* ── Reset & Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem 4rem;
+  overflow-x: hidden;
+}
+
+/* Arka plan ışıması */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 10%, rgba(124,156,255,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 35% at 80% 80%, rgba(184,164,255,0.05) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Başlık ───────────────────────────────────────────────── */
+header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 400;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-top: 0.5rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 300;
+}
+
+/* ── Ana kapsayıcı ────────────────────────────────────────── */
+.container {
+  width: 100%;
+  max-width: 960px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 680px) {
+  .container { grid-template-columns: 1fr; }
+}
+
+/* ── Kart bileşeni ────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  transition: border-color 0.3s;
+}
+
+.card:hover { border-color: rgba(255,255,255,0.13); }
+
+.card-title {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-title span { font-size: 1rem; }
+
+/* ── Kamera alanı ─────────────────────────────────────────── */
+.camera-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #0a0b0e;
+}
+
+#video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* ayna efekti */
+  display: block;
+}
+
+#faceCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+  pointer-events: none;
+}
+
+.cam-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.cam-placeholder svg { opacity: 0.3; }
+
+/* Kamera aktif göstergesi */
+.cam-status {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  border-radius: 20px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.cam-status.visible { opacity: 1; }
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #888;
+}
+
+.status-dot.live {
+  background: #4ade80;
+  animation: blink 1.8s infinite;
+}
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── Düğmeler ─────────────────────────────────────────────── */
+.btn-row { display: flex; gap: 0.75rem; margin-top: 1rem; }
+
+.btn {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-color: transparent;
+  color: #fff;
+  font-weight: 500;
+}
+
+.btn-primary:hover { opacity: 0.9; color: #fff; }
+
+/* ── Ses görselleştirici ──────────────────────────────────── */
+.voice-wrap {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  background: #0a0b0e;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+#voiceCanvas { width: 100%; height: 100%; display: block; }
+
+.mic-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* Ses metrikleri */
+.voice-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.metric {
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem;
+  text-align: center;
+}
+
+.metric .m-label { font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase; }
+.metric .m-val { font-size: 1rem; font-weight: 500; color: var(--text); margin-top: 0.2rem; }
+
+/* ── Sonuç paneli (tam genişlik) ──────────────────────────── */
+.result-card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 520px) { .result-card { grid-template-columns: 1fr; } }
+
+.emotion-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 120px;
+}
+
+.emotion-emoji {
+  font-size: 4rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 20px currentColor);
+  transition: all 0.5s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+.emotion-name {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.2rem;
+  text-align: center;
+  color: var(--text);
+}
+
+.emotion-badge {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.6rem;
+  border-radius: 20px;
+}
+
+/* Duygu rengi sınıfları */
+.c-happy    { color: var(--happy); }
+.c-sad      { color: var(--sad); }
+.c-angry    { color: var(--angry); }
+.c-fear     { color: var(--fear); }
+.c-stressed { color: var(--stressed); }
+.c-surprise { color: var(--surprise); }
+.c-disgust  { color: var(--disgust); }
+.c-neutral  { color: var(--neutral); }
+
+/* Öneriler */
+.recs-title {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.rec-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.rec-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-soft);
+  animation: slideIn 0.4s ease both;
+}
+
+.rec-item .rec-icon { font-size: 1rem; flex-shrink: 0; margin-top: 0.05rem; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Bekleme durumu */
+.waiting-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 0.75rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
+.pulse-ring {
+  width: 48px; height: 48px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  animation: ring 2s ease-out infinite;
+}
+
+@keyframes ring {
+  0%  { transform: scale(0.8); opacity: 1; }
+  100%{ transform: scale(1.6); opacity: 0; }
+}
+
+/* Skor barları (yüz analizi) */
+.score-bars { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; }
+
+.score-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 36px;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.score-label { color: var(--text-dim); }
+.score-track { height: 5px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+.score-fill  { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.5s ease; }
+.score-pct   { color: var(--text-soft); text-align: right; }
+
+/* ── Erişilebilirlik paneli ───────────────────────────────── */
+.a11y-bar {
+  grid-column: 1 / -1;
+  background: rgba(124,156,255,0.06);
+  border: 1px solid rgba(124,156,255,0.15);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Yükleniyor animasyonu ────────────────────────────────── */
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Gizle/göster yardımcıları ───────────────────────────── */
+.hidden { display: none !important; }
+</style>
+</head>
+
+<body>
+
+<!-- Ekran okuyucular için gizli başlık -->
+<h1 class="hidden">Duygu Tanıma Asistanı — Mental Sağlık Odaklı</h1>
+
+<header role="banner">
+  <div class="logo" aria-label="Duygu Asistanı">Duygu Asistanı</div>
+  <p class="tagline">Yüz ifadesi · Ses tonu · Mental sağlık</p>
+</header>
+
+<main class="container" role="main" aria-live="polite">
+
+  <!-- Kamera kartı -->
+  <section class="card" aria-label="Kamera ve yüz ifadesi analizi">
+    <div class="card-title"><span>📷</span> Yüz İfadesi</div>
+
+    <div class="camera-wrap" role="img" aria-label="Kamera görüntüsü">
+      <video id="video" playsinline muted autoplay aria-hidden="true"></video>
+      <canvas id="faceCanvas" aria-hidden="true"></canvas>
+
+      <!-- Kamera kapalıyken yer tutucu -->
+      <div class="cam-placeholder" id="camPlaceholder" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <span>Kamera kapalı</span>
+      </div>
+
+      <!-- Canlı göstergesi -->
+      <div class="cam-status" id="camStatus" aria-live="polite">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Kapalı</span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="camBtn" onclick="toggleCamera()"
+              aria-pressed="false" aria-label="Kamerayı başlat veya durdur">
+        ▶ Başlat
+      </button>
+      <button class="btn" id="snapBtn" onclick="analyzeFrame()" disabled
+              aria-label="Mevcut kare ile analiz yap">
+        🔍 Analiz Et
+      </button>
+    </div>
+
+    <!-- Yüz skor barları -->
+    <div class="score-bars" id="scoreBars" aria-label="Yüz ifadesi skoru dağılımı"></div>
+  </section>
+
+  <!-- Ses kartı -->
+  <section class="card" aria-label="Ses tonu analizi">
+    <div class="card-title"><span>🎙</span> Ses Tonu</div>
+
+    <div class="voice-wrap" role="img" aria-label="Ses dalga formu görselleştirmesi">
+      <canvas id="voiceCanvas" aria-hidden="true"></canvas>
+      <div class="mic-msg" id="micMsg">Mikrofon bekleniyor...</div>
+    </div>
+
+    <div class="voice-metrics">
+      <div class="metric">
+        <div class="m-label">Pitch</div>
+        <div class="m-val" id="mPitch">—</div>
+      </div>
+      <div class="metric">
+        <div class="m-label">Enerji</div>
+        <div class="m-val" id="mEnergy">—</div>
+      </div>
+      <div class="metric">
+        <div class="m-label">Ses</div>
+        <div class="m-val" id="mVoiceEmo">—</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="micBtn" onclick="toggleMic()"
+              aria-pressed="false" aria-label="Mikrofonu başlat veya durdur">
+        🎙 Mikrofon
+      </button>
+      <button class="btn" id="analyzeVoiceBtn" onclick="analyzeVoice()" disabled
+              aria-label="Ses tonu analizi yap">
+        🔍 Analiz Et
+      </button>
+    </div>
+  </section>
+
+  <!-- Erişilebilirlik bilgi çubuğu -->
+  <div class="a11y-bar" role="note" aria-label="Gizlilik bildirimi">
+    🔒 Tüm analizler tarayıcında gerçekleştirilir. Hiçbir görüntü veya ses verisi sunucuya gönderilmez.
+  </div>
+
+  <!-- Sonuç / bekleme paneli -->
+  <div class="waiting-state" id="waitingState" aria-label="Analiz bekleniyor">
+    <div class="pulse-ring" aria-hidden="true"></div>
+    <span>Kamera veya mikrofonu başlatarak analizi tetikle</span>
+  </div>
+
+  <!-- Duygu sonuç kartı (analiz yapıldıktan sonra görünür) -->
+  <section class="card result-card hidden" id="resultCard"
+           aria-label="Duygu analizi sonucu" aria-live="assertive">
+
+    <!-- Sol: duygu ikonu -->
+    <div class="emotion-display">
+      <div class="emotion-emoji" id="resultEmoji" aria-hidden="true">😐</div>
+      <div class="emotion-name" id="resultName">—</div>
+      <div class="emotion-badge" id="resultBadge">Bekleniyor</div>
+    </div>
+
+    <!-- Sağ: öneriler -->
+    <div>
+      <div class="recs-title">💬 Öneriler</div>
+      <div class="rec-list" id="recList" aria-label="Mental sağlık önerileri"></div>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   Duygu Tanıma Asistanı — İstemci Tarafı JavaScript
+   ─────────────────────────────────────────────────────────────
+   Adım 1: Kamera başlatma + WebRTC
+   Adım 2: Mikrofon → Web Audio API → gerçek zamanlı dalga formu
+   Adım 3: Tarayıcı tabanlı duygu simülasyonu (demo modu)
+   Adım 4: Backend varsa /analyze endpoint'e gönder
+   Adım 5: Sonuçları UI'a aktar
+   ─────────────────────────────────────────────────────────────*/
+
+// ── Durum değişkenleri ──────────────────────────────────────
+let videoStream    = null;  // MediaStream — kamera
+let audioStream    = null;  // MediaStream — mikrofon
+let audioCtx       = null;  // AudioContext — Web Audio
+let analyser       = null;  // AnalyserNode — frekans analizi
+let animFrame      = null;  // requestAnimationFrame ID
+let isAnalyzing    = false; // analiz kilidi
+
+// ── DOM referansları ────────────────────────────────────────
+const video          = document.getElementById('video');
+const faceCanvas     = document.getElementById('faceCanvas');
+const voiceCanvas    = document.getElementById('voiceCanvas');
+const faceCtx        = faceCanvas.getContext('2d');
+const voiceCtx       = voiceCanvas.getContext('2d');
+const camBtn         = document.getElementById('camBtn');
+const snapBtn        = document.getElementById('snapBtn');
+const micBtn         = document.getElementById('micBtn');
+const analyzeVoiceBtn= document.getElementById('analyzeVoiceBtn');
+const camStatus      = document.getElementById('camStatus');
+const statusDot      = document.getElementById('statusDot');
+const statusText     = document.getElementById('statusText');
+const camPlaceholder = document.getElementById('camPlaceholder');
+const micMsg         = document.getElementById('micMsg');
+const waitingState   = document.getElementById('waitingState');
+const resultCard     = document.getElementById('resultCard');
+
+// ── Duygu tanımları (demo için) ─────────────────────────────
+const EMOTIONS = {
+  happy:    { emoji:'😊', color:'var(--happy)',    label:'Mutlu',     recs:['Enerjini sevdiklerinle paylaş.','Bu anı bir günlüğe yaz.','Mindfulness ile bu duyguyu pekiştir.'] },
+  sad:      { emoji:'😢', color:'var(--sad)',      label:'Üzgün',     recs:['Kendine karşı nazik ol.','4-4-6 nefes tekniğini dene.','Güvendiğin biriyle konuş.','Kısa bir yürüyüş serotonini artırır.'] },
+  angry:    { emoji:'😠', color:'var(--angry)',    label:'Kızgın',    recs:['Tepkiden önce 10\'a kadar say.','Omuzlarını ve çeneni gevşet.','Duyguyu kağıda yaz, sonra yırt.','Koşu veya yürüyüş öfkeyi boşaltır.'] },
+  fear:     { emoji:'😨', color:'var(--fear)',     label:'Korkmuş',   recs:['5-4-3-2-1 duyusal temelleme: 5 gördüğün şeyi say.','Korkuyu küçük adımlara böl.','Güvende olduğun bir yeri düşün.'] },
+  stressed: { emoji:'😰', color:'var(--stressed)', label:'Stresli',   recs:['Box breathing: 4 iç, 4 tut, 4 ver, 4 tut.','Acil olmayanları 24 saat ertele.','Ekranı kapat, 10 dakika yürü.','Öncelik listesi yap; tek adıma odaklan.'] },
+  surprise: { emoji:'😮', color:'var(--surprise)', label:'Şaşırmış',  recs:['Nefes al, bilgiyi sindir, sonra tepki ver.','Her sürpriz bir bilgi fırsatıdır.'] },
+  disgust:  { emoji:'😖', color:'var(--disgust)',  label:'İğrenmiş',  recs:['Tetikleyen kaynaktan geçici uzaklaş.','Soğuk suyla yüzünü yıka.'] },
+  neutral:  { emoji:'😐', color:'var(--neutral)',  label:'Nötr',      recs:['Bu an için iyi hissediyorsun.','Küçük bir şükran pratiği: 3 güzel şeyi düşün.'] },
+};
+
+const REC_ICONS = ['💛','🌿','🫁','🚶','📝','🧘','💬','✨'];
+
+// ── 1. Kamera yönetimi ──────────────────────────────────────
+async function toggleCamera() {
+  if (videoStream) {
+    stopCamera();
+  } else {
+    await startCamera();
+  }
+}
+
+async function startCamera() {
+  try {
+    // getUserMedia ile kamera izni iste
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+    });
+
+    video.srcObject = videoStream;
+    await video.play();
+
+    // Canvas boyutunu video ile senkronize et
+    video.addEventListener('loadedmetadata', () => {
+      faceCanvas.width  = video.videoWidth;
+      faceCanvas.height = video.videoHeight;
+    });
+
+    // UI güncelleme
+    camPlaceholder.style.display = 'none';
+    camStatus.classList.add('visible');
+    statusDot.classList.add('live');
+    statusText.textContent = 'Canlı';
+    camBtn.textContent = '⏹ Durdur';
+    camBtn.setAttribute('aria-pressed', 'true');
+    snapBtn.disabled = false;
+
+    // Sürekli analiz döngüsünü başlat (her 2 saniyede bir)
+    startAutoAnalysis();
+
+  } catch (err) {
+    statusText.textContent = 'Erişim reddedildi';
+    console.error('Kamera hatası:', err);
+  }
+}
+
+function stopCamera() {
+  if (videoStream) {
+    videoStream.getTracks().forEach(t => t.stop()); // stream'i serbest bırak
+    videoStream = null;
+  }
+  video.srcObject = null;
+  clearInterval(window._autoInterval);
+
+  camPlaceholder.style.display = '';
+  statusDot.classList.remove('live');
+  statusText.textContent = 'Kapalı';
+  camBtn.textContent = '▶ Başlat';
+  camBtn.setAttribute('aria-pressed', 'false');
+  snapBtn.disabled = true;
+}
+
+// Kameradan otomatik analiz — her 3 saniyede bir
+function startAutoAnalysis() {
+  window._autoInterval = setInterval(() => {
+    if (videoStream && !isAnalyzing) analyzeFrame();
+  }, 3000);
+}
+
+// ── 2. Kare analizi ─────────────────────────────────────────
+function analyzeFrame() {
+  if (!videoStream || isAnalyzing) return;
+  isAnalyzing = true;
+
+  // Video karesini 2D canvas'a çek
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width  = video.videoWidth  || 320;
+  tmpCanvas.height = video.videoHeight || 240;
+  const tmpCtx = tmpCanvas.getContext('2d');
+  tmpCtx.drawImage(video, 0, 0);
+
+  // Piksel verisinden basit parlaklık ölçümü (demo heuristiği)
+  const imgData = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
+  const brightness = calcBrightness(imgData.data);
+
+  // Demo: parlaklık değerine göre duygu simüle et
+  const faceEmotion = simulateFaceEmotion(brightness);
+
+  // Skoru güncelle ve göster
+  updateScoreBars(faceEmotion);
+
+  // Eğer ses de aktifse birleştir, değilse sadece yüz kullan
+  const finalEmotion = window._voiceEmotion
+    ? fuseEmotions(faceEmotion, window._voiceEmotion)
+    : faceEmotion;
+
+  showResult(finalEmotion, 'Yüz + Ses Analizi');
+  isAnalyzing = false;
+}
+
+// Piksel parlaklığını ortalama al (0-255 arası)
+function calcBrightness(pixels) {
+  let sum = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    // Luminance formülü: 0.299R + 0.587G + 0.114B
+    sum += 0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2];
+  }
+  return sum / (pixels.length / 4);
+}
+
+// Demo: parlaklığa göre duygu ata (gerçek kullanımda DeepFace backend'e gönderilir)
+function simulateFaceEmotion(brightness) {
+  if (brightness > 180) return 'happy';
+  if (brightness > 140) return 'neutral';
+  if (brightness > 110) return 'surprised';
+  if (brightness > 80)  return 'stressed';
+  return 'sad';
+}
+
+// ── 3. Mikrofon + Web Audio ─────────────────────────────────
+async function toggleMic() {
+  if (audioStream) {
+    stopMic();
+  } else {
+    await startMic();
+  }
+}
+
+async function startMic() {
+  try {
+    // Mikrofon izni iste
+    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    // Web Audio pipeline: mikrofon → analyser node
+    audioCtx  = new AudioContext();
+    analyser  = audioCtx.createAnalyser();
+    analyser.fftSize = 256;  // FFT boyutu — küçük = hızlı, büyük = detaylı
+
+    const source = audioCtx.createMediaStreamSource(audioStream);
+    source.connect(analyser);  // mikrofonu analyser'a bağla
+
+    micMsg.classList.add('hidden');
+    micBtn.textContent = '⏹ Durdur';
+    micBtn.setAttribute('aria-pressed', 'true');
+    analyzeVoiceBtn.disabled = false;
+
+    // Gerçek zamanlı dalga formu çizimi başlat
+    drawWaveform();
+
+    // Ses özelliklerini sürekli izle
+    startVoiceMonitor();
+
+  } catch (err) {
+    micMsg.textContent = 'Mikrofon erişimi reddedildi';
+    console.error('Mikrofon hatası:', err);
+  }
+}
+
+function stopMic() {
+  if (audioStream) {
+    audioStream.getTracks().forEach(t => t.stop());
+    audioStream = null;
+  }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  clearInterval(window._voiceInterval);
+
+  micMsg.textContent = 'Mikrofon bekleniyor...';
+  micMsg.classList.remove('hidden');
+  micBtn.textContent = '🎙 Mikrofon';
+  micBtn.setAttribute('aria-pressed', 'false');
+  analyzeVoiceBtn.disabled = true;
+  window._voiceEmotion = null;
+}
+
+// Dalga formu çizimi — requestAnimationFrame ile sürekli güncellenir
+function drawWaveform() {
+  const bufLen = analyser.frequencyBinCount;
+  const dataArr = new Uint8Array(bufLen);
+  const W = voiceCanvas.offsetWidth;
+  const H = voiceCanvas.offsetHeight;
+  voiceCanvas.width  = W;
+  voiceCanvas.height = H;
+
+  function draw() {
+    animFrame = requestAnimationFrame(draw);
+    analyser.getByteTimeDomainData(dataArr);  // dalga formu verisi
+
+    // Arka planı temizle
+    voiceCtx.fillStyle = '#0a0b0e';
+    voiceCtx.fillRect(0, 0, W, H);
+
+    // Dalga çizgisi
+    voiceCtx.beginPath();
+    voiceCtx.strokeStyle = 'rgba(124,156,255,0.8)';
+    voiceCtx.lineWidth = 2;
+
+    const sliceW = W / bufLen;
+    let x = 0;
+
+    for (let i = 0; i < bufLen; i++) {
+      const v = dataArr[i] / 128.0;  // 0-255 → 0-2 normalize
+      const y = (v * H) / 2;         // Y koordinatı hesapla
+
+      i === 0 ? voiceCtx.moveTo(x, y) : voiceCtx.lineTo(x, y);
+      x += sliceW;
+    }
+
+    voiceCtx.lineTo(W, H / 2);
+    voiceCtx.stroke();
+
+    // Altını doldur (gradient)
+    const grad = voiceCtx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, 'rgba(124,156,255,0.15)');
+    grad.addColorStop(1, 'rgba(124,156,255,0)');
+    voiceCtx.fillStyle = grad;
+    voiceCtx.fill();
+  }
+
+  draw();
+}
+
+// ── 4. Ses tonu heuristik analizi ──────────────────────────
+function startVoiceMonitor() {
+  window._voiceInterval = setInterval(() => {
+    if (!analyser) return;
+    analyzeVoice();
+  }, 2500);
+}
+
+function analyzeVoice() {
+  if (!analyser) return;
+
+  const freqData = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(freqData);  // frekans spektrumu
+
+  // RMS enerji (normalize)
+  const rms = Math.sqrt(freqData.reduce((s, v) => s + v*v, 0) / freqData.length) / 255;
+
+  // Dominant frekans (pitch tahmini — en güçlü bant)
+  const maxIdx  = freqData.indexOf(Math.max(...freqData));
+  const sampleRate = audioCtx?.sampleRate || 44100;
+  const pitchHz = (maxIdx / analyser.frequencyBinCount) * (sampleRate / 2);
+
+  // Heuristik duygu tespiti
+  let voiceEmo = 'neutral';
+  if (pitchHz > 300 && rms > 0.25)      voiceEmo = 'stressed';
+  else if (rms > 0.45)                   voiceEmo = 'angry';
+  else if (pitchHz < 150 && rms < 0.15) voiceEmo = 'sad';
+  else if (rms > 0.30)                   voiceEmo = 'happy';
+
+  window._voiceEmotion = voiceEmo;  // global state güncelle
+
+  // Metrik UI güncelle
+  document.getElementById('mPitch').textContent  = pitchHz > 0 ? Math.round(pitchHz) + ' Hz' : '—';
+  document.getElementById('mEnergy').textContent = (rms * 100).toFixed(0) + '%';
+  document.getElementById('mVoiceEmo').textContent = EMOTIONS[voiceEmo]?.label || voiceEmo;
+}
+
+// ── 5. Füzyon (istemci tarafı) ──────────────────────────────
+function fuseEmotions(face, voice) {
+  // Ses stres/öfke gösteriyorsa öncelik ver (daha belirleyici)
+  if (voice === 'stressed' || voice === 'angry') return voice;
+  // Aksi halde yüz kararı ağır basar
+  return face;
+}
+
+// ── 6. Sonuç UI ─────────────────────────────────────────────
+function showResult(emotionKey, source = 'Analiz') {
+  const em = EMOTIONS[emotionKey] || EMOTIONS.neutral;
+
+  waitingState.classList.add('hidden');
+  resultCard.classList.remove('hidden');
+
+  // Duygu göstergesi güncelle
+  const emojiEl = document.getElementById('resultEmoji');
+  emojiEl.textContent = em.emoji;
+  emojiEl.className = `emotion-emoji c-${emotionKey}`;
+
+  document.getElementById('resultName').textContent  = em.label;
+  document.getElementById('resultBadge').textContent = source;
+
+  // Önerileri listele (animasyonlu)
+  const recList = document.getElementById('recList');
+  recList.innerHTML = '';
+
+  em.recs.forEach((text, i) => {
+    const div = document.createElement('div');
+    div.className = 'rec-item';
+    div.style.animationDelay = `${i * 0.08}s`;
+    div.setAttribute('role', 'listitem');
+    div.innerHTML = `<span class="rec-icon" aria-hidden="true">${REC_ICONS[i % REC_ICONS.length]}</span>${text}`;
+    recList.appendChild(div);
+  });
+
+  // Erişilebilirlik: ekran okuyucuya bildir
+  resultCard.setAttribute('aria-label', `Duygu analizi sonucu: ${em.label}. ${em.recs.length} öneri mevcut.`);
+}
+
+// ── 7. Skor barları (yüz analizi görselleştirme) ────────────
+function updateScoreBars(dominantEmotion) {
+  const container = document.getElementById('scoreBars');
+  container.innerHTML = '';
+
+  // Demo: dominant duyguya ağırlık ver, diğerlerine rastgele küçük skor
+  const emotions = Object.keys(EMOTIONS);
+  emotions.forEach(key => {
+    const score = key === dominantEmotion
+      ? 60 + Math.random() * 35              // dominant: 60-95 arası
+      : Math.random() * 20;                  // diğerleri: 0-20 arası
+
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    row.innerHTML = `
+      <span class="score-label">${EMOTIONS[key]?.label || key}</span>
+      <div class="score-track"><div class="score-fill" style="width:${score.toFixed(0)}%; background:${EMOTIONS[key]?.color || 'var(--accent)'}"></div></div>
+      <span class="score-pct">${score.toFixed(0)}%</span>
+    `;
+    container.appendChild(row);
+  });
+}
+
+// ── 8. Erişilebilirlik: klavye desteği ─────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'c' && e.ctrlKey) toggleCamera();  // Ctrl+C → kamera
+  if (e.key === 'm' && e.ctrlKey) toggleMic();      // Ctrl+M → mikrofon
+});
+</script>
+
+</body>
+</html>
